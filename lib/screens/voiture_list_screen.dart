@@ -15,7 +15,8 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
   final VoitureService _voitureService = VoitureService();
   List<Voiture> _voitures = [];
   bool _isLoading = true;
-  String _searchQuery = '';
+  String _selectedBrand = 'All'; // For filter chips
+  final List<String> _brands = ['All', 'Mercedes', 'Tesla', 'BMW', 'Audi', 'Ferrari']; // Brands from your image
 
   @override
   void initState() {
@@ -24,7 +25,10 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
   }
 
   Future<void> _loadVoitures() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _selectedBrand = 'All'; // Reset brand filter
+    });
     try {
       final voitures = await _voitureService.getAllVoitures();
       setState(() {
@@ -37,9 +41,14 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
     }
   }
 
+  // Re-used your search function for the filter chips
   Future<void> _searchVoitures(String query) async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _selectedBrand = query; // Set selected brand
+    });
     try {
+      // Assuming searchVoitures can find by marque
       final voitures = await _voitureService.searchVoitures(query);
       setState(() {
         _voitures = voitures;
@@ -62,7 +71,12 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
         final result = await _voitureService.deleteVoiture(matricule);
         if (result) {
           _showSuccessSnackBar('Voiture supprimée avec succès');
-          _loadVoitures();
+          // Refresh list based on the current filter
+          if (_selectedBrand == 'All') {
+            _loadVoitures();
+          } else {
+            _searchVoitures(_selectedBrand);
+          }
         }
       } catch (e) {
         _showErrorSnackBar('Erreur lors de la suppression: $e');
@@ -75,7 +89,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
       context: context,
       builder: (context) => AddVoitureDialog(
         onVoitureAdded: () {
-          _loadVoitures();
+          _loadVoitures(); // Always refresh all when adding
           Navigator.pop(context);
         },
       ),
@@ -88,7 +102,12 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
       builder: (context) => EditVoitureDialog(
         voiture: voiture,
         onVoitureUpdated: () {
-          _loadVoitures();
+          // Refresh list based on the current filter
+          if (_selectedBrand == 'All') {
+            _loadVoitures();
+          } else {
+            _searchVoitures(_selectedBrand);
+          }
           Navigator.pop(context);
         },
       ),
@@ -140,43 +159,226 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
     );
   }
 
+  // --- NEW: Filter Chips Widget ---
+  Widget _buildFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: _brands.map((brand) {
+          final isSelected = brand == _selectedBrand;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: ChoiceChip(
+              label: Text(brand),
+              selected: isSelected,
+              onSelected: (selected) {
+                if (selected) {
+                  if (brand == 'All') {
+                    _loadVoitures();
+                  } else {
+                    _searchVoitures(brand);
+                  }
+                }
+              },
+              backgroundColor: Colors.grey[200],
+              selectedColor: Colors.black,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : Colors.black,
+              ),
+              pressElevation: 0,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // --- NEW: Car Grid Item Widget ---
+  Widget _buildCarGridItem(Voiture voiture) {
+    return Card(
+      elevation: 3,
+      clipBehavior: Clip.antiAlias, // Ensures image respects card's rounded corners
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: () => _showVoitureDetails(voiture),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image and Menu
+            Expanded(
+              child: Stack(
+                children: [
+                  // Car Image
+                  voiture.hasImage
+                      ? Hero( // Optional: for a nice transition to details
+                          tag: 'voiture-img-${voiture.matricule}',
+                          child: Image.file(
+                            File(voiture.image!),
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildImageErrorPlaceholder(),
+                          ),
+                        )
+                      : _buildImageErrorPlaceholder(),
+                  
+                  // Edit/Delete Menu
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.black45,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _buildPopupMenu(voiture),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Details (Title, Condition, Price)
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${voiture.marque} ${voiture.modele}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  _buildConditionTag(voiture),
+                  const SizedBox(height: 8),
+                  Text(
+                    voiture.prixFormate,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // --- NEW: Helper for image placeholder ---
+  Widget _buildImageErrorPlaceholder() {
+    return Container(
+      width: double.infinity,
+      color: Colors.grey[200],
+      child: Icon(
+        Icons.directions_car,
+        size: 50,
+        color: Colors.grey[400],
+      ),
+    );
+  }
+
+  // --- NEW: Helper for "New" / "Used" tag ---
+  Widget _buildConditionTag(Voiture voiture) {
+    // Assumption: "New" if < 1000km, else "Used"
+    // You can change this logic based on your needs (e.g., check `annee`)
+    final bool isNew = voiture.kilometrage < 1000;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isNew ? Colors.blue[50] : Colors.grey[200],
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        isNew ? 'New' : 'Used',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: isNew ? Colors.blue[700] : Colors.grey[700],
+        ),
+      ),
+    );
+  }
+  
+  // --- NEW: Helper for Edit/Delete menu ---
+  Widget _buildPopupMenu(Voiture voiture) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+      onSelected: (value) {
+        if (value == 'edit') {
+          _showEditVoitureDialog(voiture);
+        } else if (value == 'delete') {
+          _deleteVoiture(voiture.matricule);
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Modifier'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Supprimer'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gestion des Voitures'),
-        backgroundColor: Colors.blue,
+        leading: IconButton( // Back arrow from image
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Add navigation logic if needed, e.g., Navigator.pop(context)
+          },
+        ),
+        title: const Text('Top Deals'),
+        backgroundColor: Colors.white, // Matches image
+        elevation: 0, // Matches image
+        foregroundColor: Colors.black, // Matches image
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadVoitures,
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              // TODO: Implement a search page or delegate
+              _showErrorSnackBar('Search action not implemented yet.');
+            },
           ),
         ],
       ),
+      backgroundColor: Colors.white, // Match image background
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Rechercher par marque, modèle ou matricule...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                filled: true,
-                fillColor: Colors.grey[200],
-              ),
-              onChanged: (value) {
-                setState(() => _searchQuery = value);
-                if (value.isEmpty) {
-                  _loadVoitures();
-                } else {
-                  _searchVoitures(value);
-                }
-              },
-            ),
-          ),
+          // --- NEW: Filter Chips ---
+          _buildFilterChips(),
+
+          // --- NEW: Grid View ---
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -185,7 +387,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.directions_car,
+                            Icon(Icons.search_off,
                                 size: 80, color: Colors.grey[400]),
                             const SizedBox(height: 16),
                             Text(
@@ -198,103 +400,18 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
+                    : GridView.builder(
+                        padding: const EdgeInsets.all(16.0),
                         itemCount: _voitures.length,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,        // 2 columns
+                          mainAxisSpacing: 16,      // Space between rows
+                          crossAxisSpacing: 16,     // Space between columns
+                          childAspectRatio: 0.70,   // Adjust ratio of w/h
+                        ),
                         itemBuilder: (context, index) {
                           final voiture = _voitures[index];
-                          return Card(
-                            elevation: 3,
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: ListTile(
-                              leading: voiture.hasImage
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.file(
-                                        File(voiture.image!),
-                                        width: 60,
-                                        height: 60,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return CircleAvatar(
-                                            backgroundColor: Colors.blue,
-                                            child: Text(
-                                              voiture.marque[0].toUpperCase(),
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    )
-                                  : CircleAvatar(
-                                      backgroundColor: Colors.blue,
-                                      child: Text(
-                                        voiture.marque[0].toUpperCase(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                              title: Text(
-                                '${voiture.marque} ${voiture.modele}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text('Matricule: ${voiture.matricule}'),
-                                  Text('Année: ${voiture.annee}'),
-                                  if (voiture.hasDescription)
-                                    Text(
-                                      voiture.description!.length > 30
-                                          ? '${voiture.description!.substring(0, 30)}...'
-                                          : voiture.description!,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  Text('Prix: ${voiture.prixFormate}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green,
-                                      )),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit),
-                                    color: Colors.orange,
-                                    onPressed: () =>
-                                        _showEditVoitureDialog(voiture),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.info_outline),
-                                    color: Colors.blue,
-                                    onPressed: () =>
-                                        _showVoitureDetails(voiture),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete),
-                                    color: Colors.red,
-                                    onPressed: () =>
-                                        _deleteVoiture(voiture.matricule),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
+                          return _buildCarGridItem(voiture);
                         },
                       ),
           ),
@@ -304,11 +421,13 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
         onPressed: _showAddVoitureDialog,
         icon: const Icon(Icons.add),
         label: const Text('Ajouter'),
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.black, // Matches image style
       ),
     );
   }
 }
+
+// --- ALL YOUR ORIGINAL DIALOGS ARE BELOW ---
 
 // Dialog pour ajouter une voiture
 class AddVoitureDialog extends StatefulWidget {
@@ -602,21 +721,24 @@ class VoitureDetailsDialog extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 16),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    File(voiture.image!),
-                    width: double.infinity,
-                    height: 200,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: double.infinity,
-                        height: 200,
-                        color: Colors.grey[300],
-                        child: const Center(
-                          child: Icon(Icons.broken_image, size: 50),
-                        ),
-                      );
-                    },
+                  child: Hero( // Match Hero tag from list
+                    tag: 'voiture-img-${voiture.matricule}',
+                    child: Image.file(
+                      File(voiture.image!),
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: double.infinity,
+                          height: 200,
+                          color: Colors.grey[300],
+                          child: const Center(
+                            child: Icon(Icons.broken_image, size: 50),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -641,6 +763,7 @@ class VoitureDetailsDialog extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
@@ -675,11 +798,14 @@ class VoitureDetailsDialog extends StatelessWidget {
             '$label:',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: highlight ? Colors.green : Colors.black,
-              fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: highlight ? Colors.green : Colors.black,
+                fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ),
         ],
@@ -913,7 +1039,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
                   decoration: const InputDecoration(labelText: 'Puissance (CV)'),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis' : null,
+                      value?.isEmpty ?? true ? 'Champ requis': null,
                 ),
                 TextFormField(
                   controller: _cylindresController,
