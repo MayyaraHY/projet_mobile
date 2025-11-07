@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/voiture.dart';
 import '../services/voiture_service.dart';
+import '../screens/voiture_details_screen.dart';
+
 
 class VoitureListScreen extends StatefulWidget {
   const VoitureListScreen({Key? key}) : super(key: key);
@@ -15,19 +17,65 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
   final VoitureService _voitureService = VoitureService();
   List<Voiture> _voitures = [];
   bool _isLoading = true;
-  String _selectedBrand = 'All'; // For filter chips
-  final List<String> _brands = ['All', 'Mercedes', 'Tesla', 'BMW', 'Audi', 'Ferrari']; // Brands from your image
+  String _selectedBrand = 'All';
+  final List<String> _brands = ['All', 'Mercedes', 'Tesla', 'BMW', 'Audi', 'Ferrari'];
+
+  // --- For chip carousel arrows ---
+  final ScrollController _chipScrollController = ScrollController();
+  bool _showLeftArrow = false;
+  bool _showRightArrow = true;
 
   @override
   void initState() {
     super.initState();
+    // Add listener for scroll arrows
+    _chipScrollController.addListener(_updateArrowVisibility);
+    // Check visibility after the first frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrowVisibility());
     _loadVoitures();
+  }
+
+  @override
+  void dispose() {
+    // Dispose scroll controller
+    _chipScrollController.removeListener(_updateArrowVisibility);
+    _chipScrollController.dispose();
+    super.dispose();
+  }
+
+  // Helper method to update arrow visibility
+  void _updateArrowVisibility() {
+    if (!_chipScrollController.hasClients) return;
+    final position = _chipScrollController.position;
+    bool atStart = position.pixels <= position.minScrollExtent;
+    bool atEnd = position.pixels >= position.maxScrollExtent;
+    bool listIsScrollable = position.maxScrollExtent > position.minScrollExtent;
+
+    setState(() {
+      _showLeftArrow = listIsScrollable && !atStart;
+      _showRightArrow = listIsScrollable && !atEnd;
+    });
+  }
+
+  // Helper method to scroll the chip list
+  void _scrollChips({required bool isScrollingRight}) {
+    final double scrollAmount = 200; // Amount to scroll
+    final double currentPosition = _chipScrollController.position.pixels;
+    final double newPosition = isScrollingRight
+        ? currentPosition + scrollAmount
+        : currentPosition - scrollAmount;
+
+    _chipScrollController.animateTo(
+      newPosition,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _loadVoitures() async {
     setState(() {
       _isLoading = true;
-      _selectedBrand = 'All'; // Reset brand filter
+      _selectedBrand = 'All'; 
     });
     try {
       final voitures = await _voitureService.getAllVoitures();
@@ -35,25 +83,25 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
         _voitures = voitures;
         _isLoading = false;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrowVisibility());
     } catch (e) {
       setState(() => _isLoading = false);
       _showErrorSnackBar('Erreur lors du chargement: $e');
     }
   }
 
-  // Re-used your search function for the filter chips
   Future<void> _searchVoitures(String query) async {
     setState(() {
       _isLoading = true;
-      _selectedBrand = query; // Set selected brand
+      _selectedBrand = query; 
     });
     try {
-      // Assuming searchVoitures can find by marque
       final voitures = await _voitureService.searchVoitures(query);
       setState(() {
         _voitures = voitures;
         _isLoading = false;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrowVisibility());
     } catch (e) {
       setState(() => _isLoading = false);
       _showErrorSnackBar('Erreur lors de la recherche: $e');
@@ -62,16 +110,15 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
 
   Future<void> _deleteVoiture(String matricule) async {
     final confirmed = await _showConfirmDialog(
-      'Confirmer la suppression',
-      'Êtes-vous sûr de vouloir supprimer cette voiture?',
+      'Confirm Deletion',
+      'Are you sure you want to delete this car?',
     );
 
     if (confirmed == true) {
       try {
         final result = await _voitureService.deleteVoiture(matricule);
         if (result) {
-          _showSuccessSnackBar('Voiture supprimée avec succès');
-          // Refresh list based on the current filter
+          _showSuccessSnackBar('Car deleted successfully');
           if (_selectedBrand == 'All') {
             _loadVoitures();
           } else {
@@ -79,7 +126,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
           }
         }
       } catch (e) {
-        _showErrorSnackBar('Erreur lors de la suppression: $e');
+        _showErrorSnackBar('Error deleting: $e');
       }
     }
   }
@@ -89,7 +136,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
       context: context,
       builder: (context) => AddVoitureDialog(
         onVoitureAdded: () {
-          _loadVoitures(); // Always refresh all when adding
+          _loadVoitures(); 
           Navigator.pop(context);
         },
       ),
@@ -102,7 +149,6 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
       builder: (context) => EditVoitureDialog(
         voiture: voiture,
         onVoitureUpdated: () {
-          // Refresh list based on the current filter
           if (_selectedBrand == 'All') {
             _loadVoitures();
           } else {
@@ -115,9 +161,51 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
   }
 
   void _showVoitureDetails(Voiture voiture) {
-    showDialog(
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VoitureDetailsScreen(voiture: voiture),
+      ),
+    );
+  }
+
+  void _showAdminActionsSheet(Voiture voiture) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => VoitureDetailsDialog(voiture: voiture),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${voiture.marque} ${voiture.modele}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.orange),
+                title: const Text('Edit Car'),
+                onTap: () {
+                  Navigator.pop(context); 
+                  _showEditVoitureDialog(voiture);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete Car'),
+                onTap: () {
+                  Navigator.pop(context); 
+                  _deleteVoiture(voiture.matricule);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -130,11 +218,11 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmer'),
+            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -159,89 +247,78 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
     );
   }
 
-  // --- NEW: Filter Chips Widget ---
+  // This widget builds *only* the scrolling list of chips
   Widget _buildFilterChips() {
     return SingleChildScrollView(
+      controller: _chipScrollController,
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
-        children: _brands.map((brand) {
-          final isSelected = brand == _selectedBrand;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: ChoiceChip(
-              label: Text(brand),
-              selected: isSelected,
-              onSelected: (selected) {
-                if (selected) {
-                  if (brand == 'All') {
-                    _loadVoitures();
-                  } else {
-                    _searchVoitures(brand);
-                  }
-                }
-              },
-              backgroundColor: Colors.grey[200],
-              selectedColor: Colors.black,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black,
+        children: [
+          // Padding for the first item
+          const SizedBox(width: 16),
+          ..._brands.map((brand) {
+            final isSelected = brand == _selectedBrand;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 90),
+                child: ChoiceChip(
+                  label: Center(child: Text(brand)),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      if (brand == 'All') {
+                        _loadVoitures();
+                      } else {
+                        _searchVoitures(brand);
+                      }
+                    }
+                  },
+                  backgroundColor: Colors.grey[200],
+                  selectedColor: Colors.black,
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : Colors.black,
+                  ),
+                  pressElevation: 0,
+                ),
               ),
-              pressElevation: 0,
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+          // Padding for the last item
+          const SizedBox(width: 8), // (16 - 8 from previous item)
+        ],
       ),
     );
   }
 
-  // --- NEW: Car Grid Item Widget ---
   Widget _buildCarGridItem(Voiture voiture) {
     return Card(
       elevation: 3,
-      clipBehavior: Clip.antiAlias, // Ensures image respects card's rounded corners
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
         onTap: () => _showVoitureDetails(voiture),
+        onLongPress: () => _showAdminActionsSheet(voiture),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image and Menu
             Expanded(
-              child: Stack(
-                children: [
-                  // Car Image
-                  voiture.hasImage
-                      ? Hero( // Optional: for a nice transition to details
-                          tag: 'voiture-img-${voiture.matricule}',
-                          child: Image.file(
-                            File(voiture.image!),
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _buildImageErrorPlaceholder(),
-                          ),
-                        )
-                      : _buildImageErrorPlaceholder(),
-                  
-                  // Edit/Delete Menu
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.black45,
-                        shape: BoxShape.circle,
+              child: voiture.hasImage
+                  ? Hero(
+                      tag: 'voiture-img-${voiture.matricule}',
+                      child: Image.file(
+                        File(voiture.image!),
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildImageErrorPlaceholder(),
                       ),
-                      child: _buildPopupMenu(voiture),
-                    ),
-                  ),
-                ],
-              ),
+                    )
+                  : _buildImageErrorPlaceholder(),
             ),
-            
-            // Details (Title, Condition, Price)
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
@@ -276,7 +353,6 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
     );
   }
   
-  // --- NEW: Helper for image placeholder ---
   Widget _buildImageErrorPlaceholder() {
     return Container(
       width: double.infinity,
@@ -289,10 +365,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
     );
   }
 
-  // --- NEW: Helper for "New" / "Used" tag ---
   Widget _buildConditionTag(Voiture voiture) {
-    // Assumption: "New" if < 1000km, else "Used"
-    // You can change this logic based on your needs (e.g., check `annee`)
     final bool isNew = voiture.kilometrage < 1000;
     
     return Container(
@@ -312,73 +385,45 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
     );
   }
   
-  // --- NEW: Helper for Edit/Delete menu ---
-  Widget _buildPopupMenu(Voiture voiture) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
-      onSelected: (value) {
-        if (value == 'edit') {
-          _showEditVoitureDialog(voiture);
-        } else if (value == 'delete') {
-          _deleteVoiture(voiture.matricule);
-        }
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('Modifier'),
-            ],
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Supprimer'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50], 
       appBar: AppBar(
-        leading: IconButton( // Back arrow from image
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Add navigation logic if needed, e.g., Navigator.pop(context)
-          },
-        ),
         title: const Text('Top Deals'),
-        backgroundColor: Colors.white, // Matches image
-        elevation: 0, // Matches image
-        foregroundColor: Colors.black, // Matches image
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implement a search page or delegate
-              _showErrorSnackBar('Search action not implemented yet.');
-            },
-          ),
-        ],
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black,
       ),
-      backgroundColor: Colors.white, // Match image background
       body: Column(
         children: [
-          // --- NEW: Filter Chips ---
-          _buildFilterChips(),
+          // This Row holds the arrows and the chip list
+          Row(
+            children: [
+              // Left Arrow
+              Visibility(
+                visible: _showLeftArrow,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                  onPressed: () => _scrollChips(isScrollingRight: false),
+                ),
+              ),
+              // Chip List
+              Expanded(
+                child: _buildFilterChips(),
+              ),
+              // Right Arrow
+              Visibility(
+                visible: _showRightArrow,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_forward_ios, size: 20),
+                  onPressed: () => _scrollChips(isScrollingRight: true),
+                ),
+              ),
+            ],
+          ),
 
-          // --- NEW: Grid View ---
+          // This is the main grid of cars
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -391,7 +436,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
                                 size: 80, color: Colors.grey[400]),
                             const SizedBox(height: 16),
                             Text(
-                              'Aucune voiture trouvée',
+                              'No cars found',
                               style: TextStyle(
                                 fontSize: 18,
                                 color: Colors.grey[600],
@@ -404,10 +449,10 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
                         padding: const EdgeInsets.all(16.0),
                         itemCount: _voitures.length,
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,        // 2 columns
-                          mainAxisSpacing: 16,      // Space between rows
-                          crossAxisSpacing: 16,     // Space between columns
-                          childAspectRatio: 0.70,   // Adjust ratio of w/h
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 0.70,
                         ),
                         itemBuilder: (context, index) {
                           final voiture = _voitures[index];
@@ -420,16 +465,16 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddVoitureDialog,
         icon: const Icon(Icons.add),
-        label: const Text('Ajouter'),
-        backgroundColor: Colors.black, // Matches image style
+        label: const Text('Add Car'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
       ),
     );
   }
 }
 
-// --- ALL YOUR ORIGINAL DIALOGS ARE BELOW ---
+// --- AddVoitureDialog ---
 
-// Dialog pour ajouter une voiture
 class AddVoitureDialog extends StatefulWidget {
   final VoidCallback onVoitureAdded;
 
@@ -452,11 +497,11 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
   final _cylindresController = TextEditingController();
   final _kilometrageController = TextEditingController();
   final _prixController = TextEditingController();
-  final _descriptionController = TextEditingController(); // NEW
+  final _descriptionController = TextEditingController();
 
   String _selectedCarburant = 'Essence';
   bool _isLoading = false;
-  String? _selectedImagePath; // NEW
+  String? _selectedImagePath;
 
   @override
   void dispose() {
@@ -468,11 +513,10 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
     _cylindresController.dispose();
     _kilometrageController.dispose();
     _prixController.dispose();
-    _descriptionController.dispose(); // NEW
+    _descriptionController.dispose();
     super.dispose();
   }
 
-  // NEW - Pick image from file system
   Future<void> _pickImage() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -489,7 +533,7 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur lors de la sélection de l\'image: $e'),
+            content: Text('Error picking image: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -514,14 +558,14 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
           prix: double.parse(_prixController.text),
           description: _descriptionController.text.isEmpty 
               ? null 
-              : _descriptionController.text, // NEW
-          image: _selectedImagePath, // NEW
+              : _descriptionController.text,
+          image: _selectedImagePath,
         );
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Voiture ajoutée avec succès!'),
+              content: Text('Car added successfully!'),
               backgroundColor: Colors.green,
             ),
           );
@@ -532,7 +576,7 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Erreur: $e'),
+              content: Text('Error: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -544,7 +588,7 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Ajouter une voiture'),
+      title: const Text('Add a new car'),
       content: SizedBox(
         width: 500,
         child: SingleChildScrollView(
@@ -553,7 +597,6 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-              // Image picker section
               if (_selectedImagePath != null)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -588,8 +631,8 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
                 onPressed: _pickImage,
                 icon: const Icon(Icons.image),
                 label: Text(_selectedImagePath == null 
-                    ? 'Sélectionner une image'
-                    : 'Changer l\'image'),
+                    ? 'Select image'
+                    : 'Change image'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 40),
                 ),
@@ -599,44 +642,44 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
                 controller: _matriculeController,
                 decoration: const InputDecoration(labelText: 'Matricule'),
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
               TextFormField(
                 controller: _marqueController,
-                decoration: const InputDecoration(labelText: 'Marque'),
+                decoration: const InputDecoration(labelText: 'Brand (Marque)'),
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
               TextFormField(
                 controller: _modeleController,
-                decoration: const InputDecoration(labelText: 'Modèle'),
+                decoration: const InputDecoration(labelText: 'Model'),
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
               TextFormField(
                 controller: _anneeController,
-                decoration: const InputDecoration(labelText: 'Année'),
+                decoration: const InputDecoration(labelText: 'Year (Année)'),
                 keyboardType: TextInputType.number,
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
               TextFormField(
                 controller: _puissanceController,
-                decoration: const InputDecoration(labelText: 'Puissance (CV)'),
+                decoration: const InputDecoration(labelText: 'Power (CV)'),
                 keyboardType: TextInputType.number,
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
               TextFormField(
                 controller: _cylindresController,
-                decoration: const InputDecoration(labelText: 'Cylindres'),
+                decoration: const InputDecoration(labelText: 'Cylinders'),
                 keyboardType: TextInputType.number,
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
               DropdownButtonFormField<String>(
                 value: _selectedCarburant,
-                decoration: const InputDecoration(labelText: 'Carburant'),
+                decoration: const InputDecoration(labelText: 'Fuel (Carburant)'),
                 items: _voitureService
                     .getCarburantTypes()
                     .map((carburant) => DropdownMenuItem(
@@ -650,24 +693,23 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
               ),
               TextFormField(
                 controller: _kilometrageController,
-                decoration: const InputDecoration(labelText: 'Kilométrage'),
+                decoration: const InputDecoration(labelText: 'Kilometrage'),
                 keyboardType: TextInputType.number,
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
               TextFormField(
                 controller: _prixController,
-                decoration: const InputDecoration(labelText: 'Prix (TND)'),
+                decoration: const InputDecoration(labelText: 'Price (TND)'),
                 keyboardType: TextInputType.number,
                 validator: (value) =>
-                    value?.isEmpty ?? true ? 'Champ requis' : null,
+                    value?.isEmpty ?? true ? 'Field required' : null,
               ),
-              // NEW - Description field
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
-                  labelText: 'Description (optionnel)',
-                  hintText: 'Ex: Bon état, première main...',
+                  labelText: 'Description (optional)',
+                  hintText: 'Ex: Good condition, first owner...',
                 ),
                 maxLines: 3,
                 maxLength: 500,
@@ -680,7 +722,7 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
       actions: [
         TextButton(
           onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
+          child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _saveVoiture,
@@ -690,131 +732,15 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Enregistrer'),
+              : const Text('Save'),
         ),
       ],
     );
   }
 }
 
-// Dialog pour afficher les détails d'une voiture
-class VoitureDetailsDialog extends StatelessWidget {
-  final Voiture voiture;
+// --- EditVoitureDialog ---
 
-  const VoitureDetailsDialog({Key? key, required this.voiture})
-      : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('${voiture.marque} ${voiture.modele}'),
-      content: SizedBox(
-        width: 400,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-            // Image display
-            if (voiture.hasImage)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Hero( // Match Hero tag from list
-                    tag: 'voiture-img-${voiture.matricule}',
-                    child: Image.file(
-                      File(voiture.image!),
-                      width: double.infinity,
-                      height: 200,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: double.infinity,
-                          height: 200,
-                          color: Colors.grey[300],
-                          child: const Center(
-                            child: Icon(Icons.broken_image, size: 50),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            _buildDetailRow('Matricule', voiture.matricule),
-            _buildDetailRow('Marque', voiture.marque),
-            _buildDetailRow('Modèle', voiture.modele),
-            _buildDetailRow('Année', voiture.annee.toString()),
-            _buildDetailRow('Puissance', '${voiture.puissance} CV'),
-            _buildDetailRow('Cylindres', voiture.cylindres.toString()),
-            _buildDetailRow('Carburant', voiture.carburant),
-            _buildDetailRow('Kilométrage', voiture.kilometrageFormate),
-            _buildDetailRow('Prix', voiture.prixFormate, highlight: true),
-            // Description
-            if (voiture.hasDescription) ...[
-              const SizedBox(height: 16),
-              const Text(
-                'Description:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  voiture.description!,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value, {bool highlight = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            '$label:',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                color: highlight ? Colors.green : Colors.black,
-                fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Dialog pour modifier une voiture
 class EditVoitureDialog extends StatefulWidget {
   final Voiture voiture;
   final VoidCallback onVoitureUpdated;
@@ -891,7 +817,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur lors de la sélection de l\'image: $e'),
+            content: Text('Error picking image: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -924,7 +850,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Voiture mise à jour avec succès!'),
+              content: Text('Car updated successfully!'),
               backgroundColor: Colors.green,
             ),
           );
@@ -935,7 +861,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Erreur: $e'),
+              content: Text('Error: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -947,7 +873,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Modifier ${widget.voiture.marque} ${widget.voiture.modele}'),
+      title: Text('Edit ${widget.voiture.marque} ${widget.voiture.modele}'),
       content: SizedBox(
         width: 500,
         child: SingleChildScrollView(
@@ -956,7 +882,6 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Image picker section
                 if (_selectedImagePath != null)
                   Container(
                     margin: const EdgeInsets.only(bottom: 16),
@@ -999,14 +924,13 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
                   onPressed: _pickImage,
                   icon: const Icon(Icons.image),
                   label: Text(_selectedImagePath == null 
-                      ? 'Sélectionner une image'
-                      : 'Changer l\'image'),
+                      ? 'Select image'
+                      : 'Change image'),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 40),
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Matricule (non-editable)
                 TextFormField(
                   initialValue: widget.voiture.matricule,
                   decoration: const InputDecoration(
@@ -1017,40 +941,40 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
                 ),
                 TextFormField(
                   controller: _marqueController,
-                  decoration: const InputDecoration(labelText: 'Marque'),
+                  decoration: const InputDecoration(labelText: 'Brand (Marque)'),
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis' : null,
+                      value?.isEmpty ?? true ? 'Field required' : null,
                 ),
                 TextFormField(
                   controller: _modeleController,
-                  decoration: const InputDecoration(labelText: 'Modèle'),
+                  decoration: const InputDecoration(labelText: 'Model'),
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis' : null,
+                      value?.isEmpty ?? true ? 'Field required' : null,
                 ),
                 TextFormField(
                   controller: _anneeController,
-                  decoration: const InputDecoration(labelText: 'Année'),
+                  decoration: const InputDecoration(labelText: 'Year (Année)'),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis' : null,
+                      value?.isEmpty ?? true ? 'Field required' : null,
                 ),
                 TextFormField(
                   controller: _puissanceController,
-                  decoration: const InputDecoration(labelText: 'Puissance (CV)'),
+                  decoration: const InputDecoration(labelText: 'Power (CV)'),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis': null,
+                      value?.isEmpty ?? true ? 'Field required': null,
                 ),
                 TextFormField(
                   controller: _cylindresController,
-                  decoration: const InputDecoration(labelText: 'Cylindres'),
+                  decoration: const InputDecoration(labelText: 'Cylinders'),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis' : null,
+                      value?.isEmpty ?? true ? 'Field required' : null,
                 ),
                 DropdownButtonFormField<String>(
                   value: _selectedCarburant,
-                  decoration: const InputDecoration(labelText: 'Carburant'),
+                  decoration: const InputDecoration(labelText: 'Fuel (Carburant)'),
                   items: _voitureService
                       .getCarburantTypes()
                       .map((carburant) => DropdownMenuItem(
@@ -1064,23 +988,23 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
                 ),
                 TextFormField(
                   controller: _kilometrageController,
-                  decoration: const InputDecoration(labelText: 'Kilométrage'),
+                  decoration: const InputDecoration(labelText: 'Kilometrage'),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis' : null,
+                      value?.isEmpty ?? true ? 'Field required' : null,
                 ),
                 TextFormField(
                   controller: _prixController,
-                  decoration: const InputDecoration(labelText: 'Prix (TND)'),
+                  decoration: const InputDecoration(labelText: 'Price (TND)'),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value?.isEmpty ?? true ? 'Champ requis' : null,
+                      value?.isEmpty ?? true ? 'Field required' : null,
                 ),
                 TextFormField(
                   controller: _descriptionController,
                   decoration: const InputDecoration(
-                    labelText: 'Description (optionnel)',
-                    hintText: 'Ex: Bon état, première main...',
+                    labelText: 'Description (optional)',
+                    hintText: 'Ex: Good condition, first owner...',
                   ),
                   maxLines: 3,
                   maxLength: 500,
@@ -1093,7 +1017,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
       actions: [
         TextButton(
           onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
+          child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _updateVoiture,
@@ -1103,7 +1027,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Mettre à jour'),
+              : const Text('Update'),
         ),
       ],
     );
