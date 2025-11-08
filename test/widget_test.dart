@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 // import 'package:voiture/main.dart';
 // Local minimal MyApp used only for the widget test to avoid missing package import.
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   _MyAppState createState() => _MyAppState();

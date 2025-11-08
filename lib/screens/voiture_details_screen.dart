@@ -5,7 +5,7 @@ import '../models/voiture.dart'; // Adjust path if needed
 class VoitureDetailsScreen extends StatelessWidget {
   final Voiture voiture;
 
-  const VoitureDetailsScreen({Key? key, required this.voiture}) : super(key: key);
+  const VoitureDetailsScreen({super.key, required this.voiture});
 
   @override
   Widget build(BuildContext context) {

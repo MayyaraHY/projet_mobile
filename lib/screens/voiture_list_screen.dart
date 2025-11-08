@@ -7,7 +7,7 @@ import '../screens/voiture_details_screen.dart';
 
 
 class VoitureListScreen extends StatefulWidget {
-  const VoitureListScreen({Key? key}) : super(key: key);
+  const VoitureListScreen({super.key});
 
   @override
   State<VoitureListScreen> createState() => _VoitureListScreenState();
@@ -284,7 +284,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
                 ),
               ),
             );
-          }).toList(),
+          }),
           // Padding for the last item
           const SizedBox(width: 8), // (16 - 8 from previous item)
         ],
@@ -478,8 +478,7 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
 class AddVoitureDialog extends StatefulWidget {
   final VoidCallback onVoitureAdded;
 
-  const AddVoitureDialog({Key? key, required this.onVoitureAdded})
-      : super(key: key);
+  const AddVoitureDialog({super.key, required this.onVoitureAdded});
 
   @override
   State<AddVoitureDialog> createState() => _AddVoitureDialogState();
@@ -678,7 +677,7 @@ class _AddVoitureDialogState extends State<AddVoitureDialog> {
                     value?.isEmpty ?? true ? 'Field required' : null,
               ),
               DropdownButtonFormField<String>(
-                value: _selectedCarburant,
+                initialValue: _selectedCarburant,
                 decoration: const InputDecoration(labelText: 'Fuel (Carburant)'),
                 items: _voitureService
                     .getCarburantTypes()
@@ -746,10 +745,10 @@ class EditVoitureDialog extends StatefulWidget {
   final VoidCallback onVoitureUpdated;
 
   const EditVoitureDialog({
-    Key? key,
+    super.key,
     required this.voiture,
     required this.onVoitureUpdated,
-  }) : super(key: key);
+  });
 
   @override
   State<EditVoitureDialog> createState() => _EditVoitureDialogState();
@@ -973,7 +972,7 @@ class _EditVoitureDialogState extends State<EditVoitureDialog> {
                       value?.isEmpty ?? true ? 'Field required' : null,
                 ),
                 DropdownButtonFormField<String>(
-                  value: _selectedCarburant,
+                  initialValue: _selectedCarburant,
                   decoration: const InputDecoration(labelText: 'Fuel (Carburant)'),
                   items: _voitureService
                       .getCarburantTypes()
