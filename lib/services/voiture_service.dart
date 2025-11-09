@@ -67,6 +67,11 @@ class VoitureService {
     return await _repository.getVoitureByMatricule(matricule.toUpperCase().trim());
   }
 
+  // Alias for getVoitureByMatricule for convenience
+  Future<Voiture?> getByMatricule(String matricule) async {
+    return await getVoitureByMatricule(matricule);
+  }
+
   // Rechercher des voitures
   Future<List<Voiture>> searchVoitures(String query) async {
     if (query.trim().isEmpty) {

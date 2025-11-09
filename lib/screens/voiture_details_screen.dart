@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/voiture.dart'; // Adjust path if needed
+import 'rendezvous_create_screen.dart';
 
 class VoitureDetailsScreen extends StatelessWidget {
   final Voiture voiture;
@@ -177,7 +178,13 @@ class VoitureDetailsScreen extends StatelessWidget {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Handle offer action
+                    // Ouvre l'écran de création de rendez-vous en passant la voiture
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RendezVousCreateScreen(voiture: voiture),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,

@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import '../models/voiture.dart';
 import '../services/voiture_service.dart';
 import '../screens/voiture_details_screen.dart';
+import '../screens/rendez_vous_screen.dart';
 
 
 class VoitureListScreen extends StatefulWidget {
@@ -394,6 +395,20 @@ class _VoitureListScreenState extends State<VoitureListScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RendezVousScreen(),
+                ),
+              );
+            },
+            tooltip: 'Mes rendez-vous',
+          ),
+        ],
       ),
       body: Column(
         children: [
