@@ -3,6 +3,7 @@ import '../models/rendezvous.dart';
 import '../services/rendezvous_service.dart';
 import '../models/voiture.dart';
 import '../services/voiture_service.dart';
+import '../services/weather_api_service.dart';
 import 'rendez_vous_details_screen.dart';
 
 class RendezVousScreen extends StatefulWidget {
@@ -15,9 +16,11 @@ class RendezVousScreen extends StatefulWidget {
 class _RendezVousScreenState extends State<RendezVousScreen> {
   final RendezVousService _rendezvousService = RendezVousService();
   final VoitureService _voitureService = VoitureService();
+  final WeatherApiService _weatherService = WeatherApiService();
   List<RendezVous> _rendezvous = [];
   List<RendezVous> _filteredRendezVous = [];
   Map<String, Voiture> _voitureCache = {};
+  Map<String, WeatherInfo> _weatherCache = {}; // Cache météo
   bool _isLoading = true;
   String _selectedStatusFilter = 'all';
 
@@ -243,15 +246,27 @@ class _RendezVousScreenState extends State<RendezVousScreen> {
 
               const SizedBox(height: 12),
 
-              // Location
+              // Location with weather hint
               Row(
                 children: [
                   Icon(Icons.location_on, color: Colors.red[600], size: 20),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      'Lieu: ${rendezvous.lieu}',
-                      style: const TextStyle(fontSize: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Lieu: ${rendezvous.lieu}',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                        // VALEUR AJOUTÉE: Indicateur météo
+                        if (_isAppointmentSoon(rendezvous))
+                          Text(
+                            '🌤️',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -314,6 +329,20 @@ class _RendezVousScreenState extends State<RendezVousScreen> {
         return 'annulé';
       default:
         return status;
+    }
+  }
+
+  /// VALEUR AJOUTÉE: Vérifier si le rendez-vous est bientôt (météo pertinente)
+  bool _isAppointmentSoon(RendezVous rendezvous) {
+    try {
+      final appointmentDate = DateTime.parse(rendezvous.date);
+      final now = DateTime.now();
+      final difference = appointmentDate.difference(now).inDays;
+
+      // Afficher la météo si le rendez-vous est dans les 3 prochains jours
+      return difference >= 0 && difference <= 3;
+    } catch (e) {
+      return false;
     }
   }
 
