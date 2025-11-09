@@ -149,53 +149,65 @@ class VoitureDetailsScreen extends StatelessWidget {
       bottomNavigationBar: BottomAppBar(
         elevation: 10,
         child: Container(
-          height: 80,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // --- Price ---
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Price',
-                    style: TextStyle(fontSize: 14, color: Colors.black54),
-                  ),
-                  Text(
-                    voiture.prixFormate,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Price',
+                      style: TextStyle(fontSize: 11, color: Colors.black54),
                     ),
-                  ),
-                ],
-              ),
-              // --- "Make an Offer" Button ---
-              SizedBox(
-                width: 180,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Ouvre l'écran de création de rendez-vous en passant la voiture
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => RendezVousCreateScreen(voiture: voiture),
+                    const SizedBox(height: 1),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        voiture.prixFormate,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-                  child: const Text(
-                    'Make an Offer',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // --- "Make an Offer" Button ---
+              Expanded(
+                flex: 3,
+                child: SizedBox(
+                  height: 40,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Ouvre l'écran de création de rendez-vous en passant la voiture
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RendezVousCreateScreen(voiture: voiture),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    child: const FittedBox(
+                      child: Text(
+                        'Make an Offer',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   ),
                 ),
               ),

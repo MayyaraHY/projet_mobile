@@ -4,6 +4,7 @@ import '../models/voiture.dart';
 import '../services/rendezvous_service.dart';
 import '../services/voiture_service.dart';
 import '../services/weather_api_service.dart';
+import 'dart:io';
 
 class RendezVousDetailsScreen extends StatefulWidget {
   final RendezVous rendezvous;
@@ -255,30 +256,49 @@ class _RendezVousDetailsScreenState extends State<RendezVousDetailsScreen> {
   Widget _buildStatusChip() {
     final color = _getStatusColor(_currentRendezVous.status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: color, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.2),
-            offset: const Offset(0, 2),
-            blurRadius: 4,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color, width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_getStatusIcon(_currentRendezVous.status), color: color, size: 24),
-          const SizedBox(width: 8),
+          Icon(_getStatusIcon(_currentRendezVous.status), color: color, size: 16),
+          const SizedBox(width: 6),
           Text(
             _currentRendezVous.statusDisplayName,
             style: TextStyle(
               color: color,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageErrorPlaceholder() {
+    return Container(
+      color: Colors.grey[200],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.directions_car,
+            size: 80,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Image du véhicule\nnon disponible',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[600],
               fontSize: 16,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -425,7 +445,9 @@ class _RendezVousDetailsScreenState extends State<RendezVousDetailsScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Détails du Rendez-vous'),
+        title: Text(_voiture != null 
+            ? '${_voiture!.marque} ${_voiture!.modele}'
+            : 'Détails du Rendez-vous'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -445,90 +467,73 @@ class _RendezVousDetailsScreenState extends State<RendezVousDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Status Card
+                  // Car Image Card
                   Card(
                     elevation: 3,
+                    clipBehavior: Clip.antiAlias,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Statut du rendez-vous',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Center(child: _buildStatusChip()),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Vehicle Card
-                  Card(
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Véhicule',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
+                    child: Column(
+                      children: [
+                        // Car Image
+                        Container(
+                          height: 200,
+                          width: double.infinity,
+                          child: _voiture != null && _voiture!.hasImage
+                              ? Hero(
+                                  tag: 'voiture-img-${_voiture!.matricule}',
+                                  child: Image.file(
+                                    File(_voiture!.image!),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        _buildImageErrorPlaceholder(),
+                                  ),
+                                )
+                              : _buildImageErrorPlaceholder(),
+                        ),
+                        // Car info overlay
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.directions_car, color: Colors.blue[600], size: 24),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
                                       _voiture != null
                                           ? '${_voiture!.marque} ${_voiture!.modele}'
                                           : 'Véhicule ${_currentRendezVous.voitureMatricule}',
                                       style: const TextStyle(
-                                        fontSize: 18,
+                                        fontSize: 20,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    Text(
-                                      'Matricule: ${_currentRendezVous.voitureMatricule}',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                    if (_voiture != null)
-                                      Text(
-                                        'Prix: ${_voiture!.prixFormate}',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.green[700],
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                  ],
+                                  ),
+                                  _buildStatusChip(),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Matricule: ${_currentRendezVous.voitureMatricule}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
                                 ),
                               ),
+                              if (_voiture != null)
+                                Text(
+                                  'Prix: ${_voiture!.prixFormate}',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.green[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
 
