@@ -122,8 +122,8 @@ class _RendezVousCreateScreenState extends State<RendezVousCreateScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Planifier un Rendez-vous'),
-        backgroundColor: Colors.blue[600],
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -250,7 +250,7 @@ class _RendezVousCreateScreenState extends State<RendezVousCreateScreen> {
                   child: ElevatedButton(
                     onPressed: _isSubmitting ? null : _submit,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[600],
+                      backgroundColor: Colors.black,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

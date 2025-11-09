@@ -249,9 +249,7 @@ class _RendezVousDetailsScreenState extends State<RendezVousDetailsScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(_voiture != null
-            ? '${_voiture!.marque} ${_voiture!.modele}'
-            : 'Détails du Rendez-vous'),
+        title: Text('Détails du Rendez-vous'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -536,7 +534,7 @@ class _RendezVousDetailsScreenState extends State<RendezVousDetailsScreen> {
                           : const Icon(Icons.edit_calendar),
                       label: Text(_isUpdating ? 'Mise à jour...' : 'Modifier le statut'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[600],
+                        backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
