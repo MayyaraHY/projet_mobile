@@ -177,13 +177,14 @@ class _RendezVousScreenState extends State<RendezVousScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () => _navigateToDetails(rendezvous),
+        onLongPress: () => _showAppointmentActionsSheet(rendezvous),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with voiture info and delete button
+              // Header with voiture info (delete button removed - now available on long press)
               Row(
                 children: [
                   Icon(Icons.directions_car, color: Colors.blue[600], size: 24),
@@ -210,10 +211,6 @@ class _RendezVousScreenState extends State<RendezVousScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.delete, color: Colors.red[400]),
-                    onPressed: () => _showDeleteConfirmation(rendezvous),
                   ),
                 ],
               ),
@@ -346,6 +343,358 @@ class _RendezVousScreenState extends State<RendezVousScreen> {
     }
   }
 
+  void _showAppointmentActionsSheet(RendezVous rendezvous) {
+    final voiture = _voitureCache[rendezvous.voitureMatricule];
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Appointment header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    Text(
+                      voiture != null
+                          ? '${voiture!.marque} ${voiture!.modele}'
+                          : 'Véhicule ${rendezvous.voitureMatricule}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${rendezvous.date} à ${rendezvous.time}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // View details action
+              ListTile(
+                leading: const Icon(Icons.visibility, color: Colors.blue),
+                title: const Text('Voir les détails'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateToDetails(rendezvous);
+                },
+              ),
+
+              // Edit action
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.orange),
+                title: const Text('Modifier le rendez-vous'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditAppointmentModal(rendezvous);
+                },
+              ),
+
+              // Delete action
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Supprimer le rendez-vous'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmation(rendezvous);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEditAppointmentModal(RendezVous rendezvous) {
+    final voiture = _voitureCache[rendezvous.voitureMatricule];
+
+    // Controllers with pre-filled data
+    final lieuController = TextEditingController(text: rendezvous.lieu);
+    final notesController = TextEditingController(text: rendezvous.notes ?? '');
+    final dateController = TextEditingController(text: rendezvous.date);
+    final timeController = TextEditingController(text: rendezvous.time);
+
+    DateTime? selectedDate;
+    TimeOfDay? selectedTime;
+
+    // Parse existing date and time
+    try {
+      selectedDate = DateTime.parse(rendezvous.date);
+    } catch (e) {
+      selectedDate = DateTime.now();
+    }
+
+    try {
+      final timeParts = rendezvous.time.split(':');
+      selectedTime = TimeOfDay(
+        hour: int.parse(timeParts[0]),
+        minute: int.parse(timeParts[1]),
+      );
+    } catch (e) {
+      selectedTime = TimeOfDay.now();
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => WillPopScope(
+          onWillPop: () async {
+            // Dispose controllers when dialog is dismissed
+            Future.microtask(() {
+              lieuController.dispose();
+              notesController.dispose();
+              dateController.dispose();
+              timeController.dispose();
+            });
+            return true;
+          },
+          child: AlertDialog(
+          title: Text('Modifier le rendez-vous'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Vehicle info (read-only)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.directions_car, color: Colors.blue[600], size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            voiture != null
+                                ? '${voiture!.marque} ${voiture!.modele} (${rendezvous.voitureMatricule})'
+                                : 'Véhicule ${rendezvous.voitureMatricule}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blue[800],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Date field
+                  TextFormField(
+                    controller: dateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Date du rendez-vous',
+                      prefixIcon: Icon(Icons.calendar_today),
+                      border: OutlineInputBorder(),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate!,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setModalState(() {
+                          selectedDate = date;
+                          dateController.text = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Time field
+                  TextFormField(
+                    controller: timeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Heure du rendez-vous',
+                      prefixIcon: Icon(Icons.access_time),
+                      border: OutlineInputBorder(),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime!,
+                      );
+                      if (time != null) {
+                        setModalState(() {
+                          selectedTime = time;
+                          timeController.text = "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Location field
+                  TextFormField(
+                    controller: lieuController,
+                    decoration: const InputDecoration(
+                      labelText: 'Lieu du rendez-vous',
+                      prefixIcon: Icon(Icons.location_on),
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Notes field
+                  TextFormField(
+                    controller: notesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes (optionnel)',
+                      prefixIcon: Icon(Icons.note),
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                // Close modal first
+                Navigator.of(context).pop();
+
+                // Dispose controllers after closing
+                Future.microtask(() {
+                  lieuController.dispose();
+                  notesController.dispose();
+                  dateController.dispose();
+                  timeController.dispose();
+                });
+              },
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // Validate fields
+                if (lieuController.text.trim().isEmpty) {
+                  // Show error within the modal context
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Le lieu est requis')),
+                    );
+                  }
+                  return;
+                }
+
+                // Close the modal first to avoid state conflicts
+                Navigator.of(context).pop();
+
+                // Show loading indicator
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 16),
+                          Text('Mise à jour en cours...'),
+                        ],
+                      ),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                }
+
+                try {
+                  // Create updated appointment
+                  final updatedRendezVous = rendezvous.copyWith(
+                    lieu: lieuController.text.trim(),
+                    notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+                    date: dateController.text,
+                    time: timeController.text,
+                  );
+
+                  // Update in database
+                  final success = await _rendezvousService.update(updatedRendezVous);
+
+                  // Always dispose controllers
+                  lieuController.dispose();
+                  notesController.dispose();
+                  dateController.dispose();
+                  timeController.dispose();
+
+                  if (mounted) {
+                    if (success) {
+                      await _loadRendezVous(); // Reload the list
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Rendez-vous modifié avec succès'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Erreur lors de la modification'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // Always dispose controllers
+                  lieuController.dispose();
+                  notesController.dispose();
+                  dateController.dispose();
+                  timeController.dispose();
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Erreur: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Mettre à jour'),
+            ),
+          ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showDeleteConfirmation(RendezVous rendezvous) {
     showDialog(
       context: context,
@@ -451,6 +800,16 @@ class _RendezVousScreenState extends State<RendezVousScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[500],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Astuce: Appui long sur un rendez-vous pour plus d\'options',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[400],
+                          fontStyle: FontStyle.italic,
                         ),
                         textAlign: TextAlign.center,
                       ),
