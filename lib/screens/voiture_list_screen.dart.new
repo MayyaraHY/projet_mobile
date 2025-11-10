@@ -1,0 +1,290 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'profile_screen.dart';
+import 'my_listings_screen.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../models/voiture.dart';
+import '../services/voiture_service.dart';
+import '../services/rating_service.dart';
+
+class VoitureListScreen extends StatefulWidget {
+  const VoitureListScreen({Key? key}) : super(key: key);
+
+  @override
+  State<VoitureListScreen> createState() => _VoitureListScreenState();
+}
+
+class _VoitureListScreenState extends State<VoitureListScreen> {
+  final VoitureService _voitureService = VoitureService();
+  List<Voiture> _voitures = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVoitures();
+  }
+
+  Future<void> _loadVoitures() async {
+    setState(() => _isLoading = true);
+    try {
+      final voitures = await _voitureService.getVoitures();
+      setState(() {
+        _voitures = voitures;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authService = Provider.of<AuthService>(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Liste des voitures'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.list),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyListingsScreen()),
+              ).then((_) => _loadVoitures()); // Reload after returning
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              ).then((_) => _loadVoitures()); // Reload after returning
+            },
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _voitures.isEmpty
+              ? const Center(child: Text('Aucune voiture disponible'))
+              : GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.75,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: _voitures.length,
+                  itemBuilder: (context, index) {
+                    final voiture = _voitures[index];
+                    final isOwner = voiture.sellerId == authService.uid;
+                    return Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => isOwner 
+                            ? _showOwnerOptions(voiture)
+                            : _showBuyerOptions(voiture),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Image.file(
+                                File(voiture.imagePath),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    voiture.matricule,
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${voiture.prix} DT',
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${voiture.annee} • ${voiture.kilometrage} km',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          _showAddVoitureDialog();
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _showOwnerOptions(Voiture voiture) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(voiture.matricule),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Modifier'),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditVoitureDialog(voiture);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Supprimer'),
+              onTap: () async {
+                Navigator.pop(context);
+                final confirm = await _showConfirmDialog(
+                  'Supprimer la voiture',
+                  'Êtes-vous sûr de vouloir supprimer cette voiture ?',
+                );
+                if (confirm == true) {
+                  await _voitureService.deleteVoiture(voiture.id!);
+                  _loadVoitures();
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBuyerOptions(Voiture voiture) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(voiture.matricule),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(voiture.imagePath),
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.euro),
+                title: Text('${voiture.prix} DT'),
+                dense: true,
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_today),
+                title: Text('Année: ${voiture.annee}'),
+                dense: true,
+              ),
+              ListTile(
+                leading: const Icon(Icons.speed),
+                title: Text('${voiture.kilometrage} km'),
+                dense: true,
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final authService = Provider.of<AuthService>(context, listen: false);
+                    Navigator.pop(context);
+                    showDialog(
+                      context: context,
+                      builder: (context) => _RatingDialog(
+                        sellerId: voiture.sellerId,
+                        raterId: authService.uid!,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.star),
+                  label: const Text('Noter le vendeur'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddVoitureDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AddVoitureDialog(
+        onVoitureAdded: () {
+          _loadVoitures();
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  void _showEditVoitureDialog(Voiture voiture) {
+    showDialog(
+      context: context,
+      builder: (context) => EditVoitureDialog(
+        voiture: voiture,
+        onVoitureUpdated: () {
+          _loadVoitures();
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  Future<bool?> _showConfirmDialog(String title, String content) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+  }
+}
